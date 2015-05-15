@@ -11,27 +11,33 @@
 # other purposes.
 #
 # {
-#   "checks": {
-#     "snmp": {
-#       "extension": "snmp",
-#       "subscribers": [],
-#       "interval": 50,
-#       "handler": "default"
-#       "traps": [
-# THIS BIT IN JSON
-#  - trap_oid: 1.3.6.1.4.1.6876.4.3.0.203
-#    trap:
-#      old_state_oid: 1.3.6.1.4.1.6876.4.3.304.0
-#      new_state_oid: 1.3.6.1.4.1.6876.4.3.305.0
-#      message_oid: 1.3.6.1.4.1.6876.4.3.306.0
-#      state_oid: 1.3.6.1.4.1.6876.4.3.308.0
-#    event:  # This overrides the event with soem specific extra stuff if you want it
-#      name: "VMWARE-EVENT::alarm.LicenseNonComplianceAlarm-{hostname}"
-#      status: "1"
-#      output: "{message_oid}"
-#      handler: "default"
-#      team: "wpi"
-#     }
+#  "checks": {
+#    "snmp": {
+#      "extension": "snmp",
+#      "subscribers": [],
+#      "interval": 50,
+#      "handler": "default"
+#    }
+#  },
+#  "snmp": {
+#    "traps": [
+#      {
+#        "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
+#        "trap": {
+#          "old_state_oid": "1.3.6.1.4.1.6876.4.3.304.0",
+#          "new_state_oid": "1.3.6.1.4.1.6876.4.3.305.0",
+#          "message_oid": "1.3.6.1.4.1.6876.4.3.306.0",
+#          "state_oid": "1.3.6.1.4.1.6876.4.3.308.0"
+#        },
+#        "event": {
+#          "name": "snmp-trap",
+#          "status": 1,
+#           "output": "{message_oid}",
+#           "handler": "default"
+#           }
+#         }
+#       }
+#     ]
 #   }
 # }
 # 
@@ -44,9 +50,9 @@
 #
 # http://www.net-snmp.org/docs/mibs/ucdavis.html#laTable
 # Load Average Last Minute -  .1.3.6.1.4.1.2021.10.1.3.1
-
 require 'net/http'
 require 'snmp'
+require 'json'
 include SNMP
 
 module Sensu
@@ -56,9 +62,8 @@ module Sensu
         'snmp'
       end
 
-      # Get the list of traps supported for this handler
       def traps
-        Array(options['traps'])
+        options[:traps]
       end
 
       def description
@@ -104,12 +109,12 @@ module Sensu
         m = SNMP::TrapListener.new(:Port => 1062) do |manager|
 
 #Don't try and do anything clever with MIBs just yet
-          # SNMP::MIB.import_modules(@mibs)
-#          manager.load_modules(Array(@mibs), SNMP::MIB::DEFAULT_MIB_PATH)
+#          SNMP::MIB.import_modules(@mibs)
+          #manager.load_modules(Array(@mibs), SNMP::MIB::DEFAULT_MIB_PATH)
 #          @mib = manager.mib
 
           manager.on_trap_v1 do |trap|
-            @logger.info format_v1_trap(trap)
+            @logger.info trap.to_json
           end
 
           manager.on_trap_v2c do |trap|
@@ -117,13 +122,8 @@ module Sensu
 
             processed = false
             traps.each do |trapdef|
-#              if !trapdef['trap_oid'].nil?
-                trapdef_oid = SNMP::ObjectId.new(trapdef['trap_oid'])
-#              else
-#                trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef['trap_name']))
-#              end
-              @logger.debug 'trapdef ' + trapdef_oid.inspect
-              @logger.debug 'trap ' + trap.trap_oid.inspect
+              trapdef_oid = SNMP::ObjectId.new(trapdef[:trap_oid])
+
               # only accept configured traps
               if trap.trap_oid == trapdef_oid
                 @logger.info 'processing trap: ' + trap.trap_oid.to_s
@@ -148,7 +148,8 @@ module Sensu
       def publish_check_result (check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-          @log.info "Sending check result: #{check.to_json}"
+          @logger.info "Sending check result: #{check.to_json}"
+          puts check.to_json
           t = TCPSocket.new '127.0.0.1', 3030
           t.write(check.to_json + "\n")
       end
@@ -158,25 +159,26 @@ module Sensu
 
         fields['hostname'] = trap.source_ip
         fields['source'] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
-        trapdef['trap'].each do |key,value|
-          if key.include?('_oid')
+        Array(trapdef[:trap]).each do |key,value|
+          if key.to_s.include?('_oid')
             value = SNMP::ObjectId.new(value)
           else
             value = SNMP::ObjectId.new(@mib.oid(value))
           end
           @logger.debug key.inspect + ', ' + value.inspect
           @logger.debug trap.varbind_list.inspect
-          fields[key] = trap.varbind_list.find{|vb| vb.name == value}.value
+          val = trap.varbind_list.find{|vb| vb.name == value}
+          fields[key] = val.value unless val.nil?
         end
 
         @logger.debug fields
         fields.each do |key,value|
-          trapdef['event'].each{|k,v| trapdef['event'][k] = v.gsub("{#{key}}", value )}
+          trapdef[:event].each{|k,v| trapdef[:event][k] = v.gsub("{#{key}}", value ) rescue v }
         end
 
-        @logger.debug trapdef['event']
+        @logger.debug trapdef[:event]
 
-        publish_check_result trapdef['event'].to_json
+        publish_check_result trapdef[:event].to_json
 
       end
 
