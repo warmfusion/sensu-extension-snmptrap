@@ -148,8 +148,9 @@ module Sensu
       def publish_check_result (check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-        uri = URI.parse("http://localhost:3030")
-        response = Net::HTTP.post_form(uri, check)
+          @log.info "Sending check result: #{check.to_json}"
+          t = TCPSocket.new '127.0.0.1', 3030
+          t.write(check.to_json + "\n")
       end
 
       def process_v2c_trap(trap, trapdef)
