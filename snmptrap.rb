@@ -40,6 +40,9 @@
 #     ]
 #   }
 # }
+#
+# Handy Test script:
+# snmptrap -v 2c -c public localhost:1062 "" NET-SNMP-EXAMPLES-MIB::netSnmpExampleHeartbeatNotification  netSnmpExampleHeartbeatRate i 123456
 # 
 #
 # Released under the same terms as Sensu (the MIT license); see LICENSE
