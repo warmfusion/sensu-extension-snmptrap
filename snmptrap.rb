@@ -15,16 +15,13 @@
 #    "traps": [
 #      {
 #        "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
-#        "trap": {
-#          "old_state_oid": "1.3.6.1.4.1.6876.4.3.304.0",
-#          "new_state_oid": "1.3.6.1.4.1.6876.4.3.305.0",
-#          "message_oid": "1.3.6.1.4.1.6876.4.3.306.0",
-#          "state_oid": "1.3.6.1.4.1.6876.4.3.308.0"
+#        "trap": {  # This describes template variables (key) and the OID/MIB's to use for their values
+#          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1.0"  # Will make heartbeatrate = valueOf(1.3.6...)
 #        },
 #        "event": {
 #          "name": "snmp-trap",
 #          "status": 1,
-#           "output": "{message_oid}",
+#           "output": "Heartbeat Rate {heartbeatrate}", # {heartbeatrate} is a template variable described by [:trap][:heartbeatrate] above
 #           "handler": "default"
 #           }
 #         }
@@ -150,23 +147,20 @@ module Sensu
       def process_v2c_trap(trap, trapdef)
         fields = Hash.new
 
-        fields['hostname'] = trap.source_ip
-        fields['source'] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
+        fields[:hostname] = trap.source_ip
+        fields[:source] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
         Array(trapdef[:trap]).each do |key,value|
-          if key.to_s.include?('_oid')
-            value = SNMP::ObjectId.new(value)
-          else
-            value = SNMP::ObjectId.new(@mib.oid(value))
-          end
+          value = SNMP::ObjectId.new(value) rescue SNMP::ObjectId.new(@mib.oid(value))
           @logger.debug key.inspect + ', ' + value.inspect
           @logger.debug trap.varbind_list.inspect
           val = trap.varbind_list.find{|vb| vb.name == value}
           fields[key] = val.value unless val.nil?
         end
 
-        @logger.debug fields
+        # Replace any {template} values in the event with the value of
+        # snmp values defined in the traps configuration
         fields.each do |key,value|
-          trapdef[:event].each{|k,v| trapdef[:event][k] = v.gsub("{#{key}}", value ) rescue v }
+          trapdef[:event].each{|k,v| trapdef[:event][k] = v.gsub("{#{key}}", value.to_s ) rescue v }
         end
 
         @logger.debug trapdef[:event]
