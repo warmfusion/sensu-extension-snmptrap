@@ -19,7 +19,7 @@
 #          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1.0"  # Will make heartbeatrate = valueOf(1.3.6...)
 #        },
 #        "event": {
-#          "name": "snmp-trap",
+#          "name": "snmp-trap-{hostname}", # {hostname} and {source} (the ip) are automatically provided template variables
 #          "status": 1,
 #           "output": "Heartbeat Rate {heartbeatrate}", # {heartbeatrate} is a template variable described by [:trap][:heartbeatrate] above
 #           "handler": "default"
@@ -147,8 +147,8 @@ module Sensu
       def process_v2c_trap(trap, trapdef)
         fields = Hash.new
 
-        fields[:hostname] = trap.source_ip
-        fields[:source] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
+        fields[:source] = trap.source_ip
+        fields[:hostname] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
         Array(trapdef[:trap]).each do |key,value|
           value = SNMP::ObjectId.new(value) rescue SNMP::ObjectId.new(@mib.oid(value))
           @logger.debug key.inspect + ', ' + value.inspect
