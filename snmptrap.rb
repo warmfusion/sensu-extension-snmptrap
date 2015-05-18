@@ -11,14 +11,6 @@
 # other purposes.
 #
 # {
-#  "checks": {
-#    "snmp": {
-#      "extension": "snmp",
-#      "subscribers": [],
-#      "interval": 50,
-#      "handler": "default"
-#    }
-#  },
 #  "snmp": {
 #    "traps": [
 #      {
@@ -90,9 +82,9 @@ module Sensu
         {
           type: 'extension',
           name: name,
-          interval: options[:send_interval],
+          publish: false, # Don't run this extension as a check
+          interval: 9999, # Required for compatibility
           standalone: true,
-          handler: options[:handler]
         }
       end
 
@@ -102,14 +94,14 @@ module Sensu
       end
 
       def run(data=nil, options={}, &callback)
-        @logger.info('SNMP Trap: Run called')
-        output = 'No Test here yet...'
-        callback.call(output, 0)
+        @logger.info('SNMP Trap: Run called as a check - this is not supported')
+        output = 'SNMPHandler extension should not be called as a standalone check'
+        callback.call(output, 3)
       end
 
       def start_trap()
-        @logger.info('Starting SNMP Trap listener.')
-        m = SNMP::TrapListener.new(:Port => 1062) do |manager|
+        @logger.info('Starting SNMP Trap listener...')
+        m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
 
 #Don't try and do anything clever with MIBs just yet
 #          SNMP::MIB.import_modules(@mibs)
@@ -117,6 +109,7 @@ module Sensu
 #          @mib = manager.mib
 
           manager.on_trap_v1 do |trap|
+            @logger.info('v1-Trap caught')
             @logger.info trap.to_json
           end
 
@@ -135,25 +128,22 @@ module Sensu
                 break
               end
             end
-
-            @logger.info 'ignoring unconfigured trap: ' + trap.trap_oid.to_s unless processed
-
+            @logger.info 'Ignoring unrecognised trap: ' + trap.trap_oid.to_s unless processed
           end
-          @logger.info "Logging started"
         end
       end
 
 
       private
-
       # Doesn't appear to be possible to ping Sensu directly for async event triggering
       # even though we're inside Sensu right now...
       def publish_check_result (check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
           @logger.info "Sending check result: #{check.to_json}"
-          puts check.to_json
-          t = TCPSocket.new '127.0.0.1', 3030
+          host = settings[:client][:bind] ||= '127.0.0.1'
+          port = settings[:client][:port] ||= '3030'
+          t = TCPSocket.new host, port
           t.write(check.to_json + "\n")
       end
 
@@ -180,12 +170,9 @@ module Sensu
         end
 
         @logger.debug trapdef[:event]
-
-        publish_check_result trapdef[:event].to_json
+        publish_check_result trapdef[:event]
 
       end
-
-
 
     end
   end
