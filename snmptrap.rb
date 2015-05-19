@@ -80,8 +80,7 @@ module Sensu
           type: 'extension',
           name: name,
           publish: false, # Don't run this extension as a check
-          interval: 9999, # Required for compatibility
-          standalone: true,
+          interval: 9999 # Required for compatibility
         }
       end
 
