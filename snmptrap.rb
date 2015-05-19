@@ -54,12 +54,8 @@ module Sensu
         'snmp'
       end
 
-      def traps
-        options[:traps]
-      end
-
       def description
-        'SNMP Extension that can check or (passivly) trap SNMP events'
+        'SNMP Extension that can check or (passively) trap SNMP events'
       end
 
       def options
@@ -87,7 +83,14 @@ module Sensu
 
       def post_init
         # Setup SNMPTraps
-        start_trap
+        @trapdefs = []
+        @log.info config['dirs']['traps']
+        Dir.glob( config['dirs']['traps'] + "/*.trap") {|file|
+          # do something with the file here
+          @trapdefs << JSON.parse(File.read(file))
+        }
+        @log.debug @trapdefs.to_json
+        start_trap_listener
       end
 
       def run(data=nil, options={}, &callback)
@@ -96,14 +99,16 @@ module Sensu
         callback.call(output, 3)
       end
 
-      def start_trap()
+      def start_trap_listener()
         @logger.info('Starting SNMP Trap listener...')
         m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
 
-#Don't try and do anything clever with MIBs just yet
-#          SNMP::MIB.import_modules(@mibs)
-          #manager.load_modules(Array(@mibs), SNMP::MIB::DEFAULT_MIB_PATH)
-#          @mib = manager.mib
+          # Need patched Gem to allow the following functions/lookups
+          # Need to copy the MIBs from somewhere to the Gem location needed (or fix the importing mechanism too)
+
+          # SNMP::MIB.import_modules(@mibs)
+          manager.load_modules(@mibs, SNMP::MIB::DEFAULT_MIB_PATH)
+          @mib = manager.mib
 
           manager.on_trap_v1 do |trap|
             @logger.info('v1-Trap caught')
@@ -114,24 +119,32 @@ module Sensu
             @logger.info('v2-Trap caught')
 
             processed = false
-            traps.each do |trapdef|
-              trapdef_oid = SNMP::ObjectId.new(trapdef[:trap_oid])
-
-              # only accept configured traps
-              if trap.trap_oid == trapdef_oid
-                @logger.info 'processing trap: ' + trap.trap_oid.to_s
-                process_v2c_trap trap, trapdef
-                processed = true
-                break
+            @trapdefs.each do |trapdef|
+              processed = false
+              @trapdefs.each do |trapdef|
+                if !trapdef['trap_oid'].nil?
+                  trapdef_oid = SNMP::ObjectId.new(trapdef['trap_oid'])
+                else
+                  trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef['trap_name']))
+                end
+                @log.debug 'trapdef ' + trapdef_oid.inspect
+                @log.debug 'trap ' + trap.trap_oid.inspect
+                # only accept configured traps
+                if trap.trap_oid == trapdef_oid
+                  @log.info 'processing trap: ' + trap.trap_oid.to_s
+                  process_v2c_trap trap, trapdef
+                  processed = true
+                  break
+                end
               end
-            end
-            @logger.info 'Ignoring unrecognised trap: ' + trap.trap_oid.to_s unless processed
+
+              @log.info 'ignoring unconfigured trap: ' + trap.trap_oid.to_s unless processed
           end
         end
       end
 
-
       private
+      
       # Doesn't appear to be possible to ping Sensu directly for async event triggering
       # even though we're inside Sensu right now...
       def publish_check_result (check)
