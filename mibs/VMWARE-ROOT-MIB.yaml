@@ -1,0 +1,16 @@
+---
+vmware: 1.3.6.1.4.1.6876
+vmwNotifications: 1.3.6.1.4.1.6876.0
+vmwSystem: 1.3.6.1.4.1.6876.1
+vmwVirtMachines: 1.3.6.1.4.1.6876.2
+vmwResources: 1.3.6.1.4.1.6876.3
+vmwProductSpecific: 1.3.6.1.4.1.6876.4
+vmwLdap: 1.3.6.1.4.1.6876.40
+vmwTraps: 1.3.6.1.4.1.6876.50
+vmwSRM: 1.3.6.1.4.1.6876.51
+vmwOID: 1.3.6.1.4.1.6876.60
+vmwareAgentCapabilities: 1.3.6.1.4.1.6876.70
+vmwExperimental: 1.3.6.1.4.1.6876.700
+vmwDocumentation: 1.3.6.1.4.1.6876.750
+vmwObsolete: 1.3.6.1.4.1.6876.800
+

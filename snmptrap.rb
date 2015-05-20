@@ -49,13 +49,23 @@ include SNMP
 
 module Sensu
   module Extension
-    class SNMPHandler < Check
+    class SNMPTrapHandler < Check
+
+      # assume the /etc/sensu/extensions folder as location for relative
+      data_path = File.expand_path(File.dirname(__FILE__) + "/../mibs")
+      DEFAULT_MIB_PATH = if (File.exist?(data_path))
+        data_path
+      else
+        warn "Could not find default MIB directory, tried:\n  #{data_path}"
+        nil
+      end
+      
       def name
-        'snmp'
+        'SnmpTrapHandler'
       end
 
       def description
-        'SNMP Extension that can check or (passively) trap SNMP events'
+        'SNMP Extension that handles/traps SNMP events'
       end
 
       def options
@@ -65,31 +75,42 @@ module Sensu
           port: 1062,
           community: 'public',
           handler: 'default',
-          send_interval: 60
+          send_interval: 60,
+          trapdefs_dir: '/etc/sensu/traps.d',
+          mibs_dir: '/etc/sensu/mibs'
         }
         @options.merge!(@settings[:snmp]) if @settings[:snmp].is_a?(Hash)
         @options
       end
-
+      
       def definition
         {
           type: 'extension',
           name: name,
           publish: false, # Don't run this extension as a check
-          interval: 9999, # Required for compatibility
-          standalone: true,
+          # interval: 9999 # Required for compatibility
         }
       end
-
+      
       def post_init
-        # Setup SNMPTraps
+        # Setup SNMPTrap
+        @logger.info options[:trapdefs_dir]
         @trapdefs = []
-        @log.info config['dirs']['traps']
-        Dir.glob( config['dirs']['traps'] + "/*.trap") {|file|
+        Dir.glob (options[:trapdefs_dir] + "/*.json") { |file|
           # do something with the file here
+          @logger.info file
           @trapdefs << JSON.parse(File.read(file))
         }
-        @log.debug @trapdefs.to_json
+        @logger.info @trapdefs.to_json
+
+        @mibs = []
+        Dir.glob(options[:mibs_dir] + "/*.yaml") {|file|
+          # do something with the file here
+          @logger.info File.basename(file, '.yaml')
+          @mibs << File.basename(file, '.yaml')
+        }
+        @logger.info @mibs.to_json
+        
         start_trap_listener
       end
 
@@ -99,15 +120,17 @@ module Sensu
         callback.call(output, 3)
       end
 
-      def start_trap_listener()
-        @logger.info('Starting SNMP Trap listener...')
+      def start_trap_listener
+
+        @logger.info("Starting SNMP Trap listener on #{options[:bind]}:#{options[:port]}")
+
         m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
 
           # Need patched Gem to allow the following functions/lookups
           # Need to copy the MIBs from somewhere to the Gem location needed (or fix the importing mechanism too)
 
           # SNMP::MIB.import_modules(@mibs)
-          manager.load_modules(@mibs, SNMP::MIB::DEFAULT_MIB_PATH)
+          manager.load_modules(@mibs, DEFAULT_MIB_PATH)
           @mib = manager.mib
 
           manager.on_trap_v1 do |trap|
@@ -127,20 +150,21 @@ module Sensu
                 else
                   trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef['trap_name']))
                 end
-                @log.debug 'trapdef ' + trapdef_oid.inspect
-                @log.debug 'trap ' + trap.trap_oid.inspect
+                @logger.info 'trapdef ' + trapdef_oid.inspect
+                @logger.info 'trap ' + trap.trap_oid.inspect
                 # only accept configured traps
                 if trap.trap_oid == trapdef_oid
-                  @log.info 'processing trap: ' + trap.trap_oid.to_s
+                  @logger.info 'processing trap: ' + trap.trap_oid.to_s
                   process_v2c_trap trap, trapdef
                   processed = true
                   break
                 end
               end
-
-              @log.info 'ignoring unconfigured trap: ' + trap.trap_oid.to_s unless processed
+              @logger.info 'ignoring unconfigured trap: ' + trap.trap_oid.to_s unless processed
+            end
           end
         end
+        m.join
       end
 
       private
