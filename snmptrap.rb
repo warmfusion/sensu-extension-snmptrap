@@ -164,7 +164,6 @@ module Sensu
             end
           end
         end
-        m.join
       end
 
       private
