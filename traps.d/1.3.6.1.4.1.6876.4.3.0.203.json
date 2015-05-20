@@ -1,9 +1,9 @@
 {
     "event": {
         "handler": "default",
-        "name": "VMWARE-EVENT::alarm.LicenseNonComplianceAlarm-{hostname}",
+        "name": "VMWARE-EVENT_alarm_LicenseNonComplianceAlarm-{hostname}",
         "output": "{message_oid}",
-        "status": "1",
+        "status": 1,
         "team": "wpi"
     },
     "trap": {

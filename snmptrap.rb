@@ -56,7 +56,7 @@ module Sensu
       DEFAULT_MIB_PATH = if (File.exist?(data_path))
         data_path
       else
-        warn "Could not find default MIB directory, tried:\n  #{data_path}"
+        @logger.info "Could not find default MIB directory, tried:\n  #{data_path}"
         nil
       end
       
@@ -124,7 +124,7 @@ module Sensu
 
         @logger.info("Starting SNMP Trap listener on #{options[:bind]}:#{options[:port]}")
 
-        m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
+        @m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
 
           # Need patched Gem to allow the following functions/lookups
           # Need to copy the MIBs from somewhere to the Gem location needed (or fix the importing mechanism too)
@@ -164,6 +164,9 @@ module Sensu
             end
           end
         end
+        
+        @logger.info("Started SNMP Trap listener on #{options[:bind]}:#{options[:port]}")
+        
       end
 
       private
@@ -185,7 +188,7 @@ module Sensu
 
         fields[:source] = trap.source_ip
         fields[:hostname] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
-        Array(trapdef[:trap]).each do |key,value|
+        Array(trapdef['trap']).each do |key,value|
           value = SNMP::ObjectId.new(value) rescue SNMP::ObjectId.new(@mib.oid(value))
           @logger.debug key.inspect + ', ' + value.inspect
           @logger.debug trap.varbind_list.inspect
@@ -193,14 +196,16 @@ module Sensu
           fields[key] = val.value unless val.nil?
         end
 
+        @logger.info fields
+
         # Replace any {template} values in the event with the value of
         # snmp values defined in the traps configuration
         fields.each do |key,value|
-          trapdef[:event].each{|k,v| trapdef[:event][k] = v.gsub("{#{key}}", value.to_s ) rescue v }
+          trapdef['event'].each{|k,v| trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/','-') ) rescue v }
         end
 
-        @logger.debug trapdef[:event]
-        publish_check_result trapdef[:event]
+        @logger.debug trapdef['event']
+        publish_check_result trapdef['event']
 
       end
 

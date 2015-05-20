@@ -1,9 +1,9 @@
 {
     "event": {
         "handler": "default",
-        "name": "F5-BIGIP-COMMON-MIB::bigipGtmPoolDisabled-{node}",
+        "name": "F5-BIGIP-COMMON-MIB_bigipGtmPoolDisabled-{node}",
         "output": "{message}",
-        "status": "2",
+        "status": 2,
         "team": "brm,pas"
     },
     "trap": {
