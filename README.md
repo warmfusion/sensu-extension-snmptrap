@@ -52,7 +52,7 @@ act upon.
       {
         "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
         "trap": {
-          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1.0" 
+          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1" 
         },
         "event": {
           "name": "snmp-trap-{hostname}",

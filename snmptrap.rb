@@ -11,28 +11,19 @@
 # other purposes.
 #
 # {
-#  "snmp": {
-#    "traps": [
-#      {
-#        "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
-#        "trap": {  # This describes template variables (key) and the OID/MIB's to use for their values
-#          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1.0"  # Will make heartbeatrate = valueOf(1.3.6...)
-#        },
-#        "event": {
-#          "name": "snmp-trap-{hostname}", # {hostname} and {source} (the ip) are automatically provided template variables
-#          "status": 1,
-#           "output": "Heartbeat Rate {heartbeatrate}", # {heartbeatrate} is a template variable described by [:trap][:heartbeatrate] above
-#           "handler": "default"
-#           }
-#         }
-#       }
-#     ]
-#   }
+#  "snmp": { }
 # }
 #
+# ## Trap Configuration
+#
+#  Traps are configured in /etc/sensu/traps.d directory, one json file containing one or more trap configurations
+#  as described in the README.md that accompanies this script.
+#
+#
+# ##############################
 # Handy Test script:
 # snmptrap -v 2c -c public localhost:1062 "" NET-SNMP-EXAMPLES-MIB::netSnmpExampleHeartbeatNotification  netSnmpExampleHeartbeatRate i 123456
-# 
+#
 #
 # Released under the same terms as Sensu (the MIT license); see LICENSE
 # for details.
@@ -59,7 +50,7 @@ module Sensu
         @logger.info "Could not find default MIB directory, tried:\n  #{data_path}"
         nil
       end
-      
+
       def name
         'SnmpTrapHandler'
       end
@@ -82,7 +73,7 @@ module Sensu
         @options.merge!(@settings[:snmp]) if @settings[:snmp].is_a?(Hash)
         @options
       end
-      
+
       def definition
         {
           type: 'extension',
@@ -90,47 +81,49 @@ module Sensu
           publish: false # Don't run this extension as a check
         }
       end
-      
+
       def post_init
         # Setup SNMPTrap
-        @logger.info options[:trapdefs_dir]
+        @logger.debug "Loading SNMPTrap definitions from #{options[:trapdefs_dir]}"
         @trapdefs = []
         Dir.glob (options[:trapdefs_dir] + "/*.json") { |file|
           # do something with the file here
           @logger.info file
-          @trapdefs << Array(JSON.parse(File.read(file)))
+          @trapdefs.concat Array(JSON.parse(File.read(file)))
         }
-        @logger.info @trapdefs.to_json
+        @logger.debug @trapdefs.to_json
 
         @mibs = []
         Dir.glob(options[:mibs_dir] + "/*.yaml") {|file|
           # do something with the file here
-          @logger.info File.basename(file, '.yaml')
+          @logger.debug "Reading MIB configuration from #{File.basename(file, '.yaml')}"
           @mibs << File.basename(file, '.yaml')
         }
-        @logger.info @mibs.to_json
-        
+        @logger.debug @mibs.to_json
+
         start_trap_listener
       end
 
       def run(data=nil, options={}, &callback)
-        @logger.info('SNMP Trap: Run called as a check - this is not supported')
+        @logger.warn('SNMP Trap: Run called as a check - this is not supported')
         output = 'SNMPHandler extension should not be called as a standalone check'
         callback.call(output, 3)
       end
 
       def start_trap_listener
 
-        @logger.info("Starting SNMP Trap listener on #{options[:bind]}:#{options[:port]}")
+        @logger.info("Starting SNMP Trap listener...")
 
-        @m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
+        m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
 
           # Need patched Gem to allow the following functions/lookups
           # Need to copy the MIBs from somewhere to the Gem location needed (or fix the importing mechanism too)
 
+          # If the following MIB code is used, SNMPTrap hangs up and stops working... dont know why - possibly
+          # an implicit .join() somewhere locking things up ?
           # SNMP::MIB.import_modules(@mibs)
-          manager.load_modules(@mibs, DEFAULT_MIB_PATH)
-          @mib = manager.mib
+          # manager.load_modules(@mibs, DEFAULT_MIB_PATH)
+          # @mib = manager.mib
 
           manager.on_trap_v1 do |trap|
             @logger.info('v1-Trap caught')
@@ -139,6 +132,7 @@ module Sensu
 
           manager.on_trap_v2c do |trap|
             @logger.info('v2-Trap caught')
+            @logger.info( trap.to_json )
 
             processed = false
             @trapdefs.each do |trapdef|
@@ -147,35 +141,36 @@ module Sensu
                 if !trapdef['trap_oid'].nil?
                   trapdef_oid = SNMP::ObjectId.new(trapdef['trap_oid'])
                 else
-                  trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef['trap_name']))
+                  trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef[:trap_name]))
                 end
-                @logger.info 'trapdef ' + trapdef_oid.inspect
-                @logger.info 'trap ' + trap.trap_oid.inspect
+                @logger.debug 'trapdef ' + trapdef_oid.inspect
+                @logger.debug 'trap ' + trap.trap_oid.inspect
                 # only accept configured traps
                 if trap.trap_oid == trapdef_oid
-                  @logger.info 'processing trap: ' + trap.trap_oid.to_s
+                  @logger.info "Processing known v2 trap #{trap.trap_oid.to_s}"
                   process_v2c_trap trap, trapdef
                   processed = true
                   break
                 end
               end
-              @logger.info 'ignoring unconfigured trap: ' + trap.trap_oid.to_s unless processed
+              @logger.debug "Ignoring unrecognised trap: #{trap.trap_oid.to_s}" +  unless processed
             end
           end
         end
-        
-        @logger.info("Started SNMP Trap listener on #{options[:bind]}:#{options[:port]}")
-        
+
+        @logger.info("SNMP Trap listener has started on #{options[:bind]}:#{options[:port]}")
+
       end
 
       private
-      
+
       # Doesn't appear to be possible to ping Sensu directly for async event triggering
       # even though we're inside Sensu right now...
       def publish_check_result (check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-          @logger.info "Sending check result: #{check.to_json}"
+          @logger.info "Sending SNMP check event: #{check.to_json}"
+
           host = settings[:client][:bind] ||= '127.0.0.1'
           port = settings[:client][:port] ||= '3030'
           t = TCPSocket.new host, port
@@ -183,24 +178,33 @@ module Sensu
       end
 
       def process_v2c_trap(trap, trapdef)
-        fields = Hash.new
 
+        fields = Hash.new
         fields[:source] = trap.source_ip
         fields[:hostname] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
+       
+        @logger.debug('Checking trap definition for key/value template pairs')
         Array(trapdef['trap']).each do |key,value|
           value = SNMP::ObjectId.new(value) rescue SNMP::ObjectId.new(@mib.oid(value))
           @logger.debug key.inspect + ', ' + value.inspect
           @logger.debug trap.varbind_list.inspect
           val = trap.varbind_list.find{|vb| vb.name == value}
+          if (val.nil?){
+            @logger.warn("trap.#{key} has OID(#{value}) that was not found in incoming trap - Check your configuration")
+          }
+          @logger.debug("Discovered value of #{key} is '#{val}'")
           fields[key] = val.value unless val.nil?
         end
 
-        @logger.info fields
+        @logger.debug("Template fields are: #{fields.inspect}")
 
         # Replace any {template} values in the event with the value of
         # snmp values defined in the traps configuration
         fields.each do |key,value|
-          trapdef['event'].each{|k,v| trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/','-') ) rescue v }
+          trapdef['event'].each{|k,v|
+            @logger.debug("Looking for #{key} in #{trapdef['event'][k]}")
+            trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/','-') ) rescue v
+          }
         end
 
         @logger.debug trapdef['event']
