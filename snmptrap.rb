@@ -87,8 +87,7 @@ module Sensu
         {
           type: 'extension',
           name: name,
-          publish: false, # Don't run this extension as a check
-          # interval: 9999 # Required for compatibility
+          publish: false # Don't run this extension as a check
         }
       end
       
