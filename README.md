@@ -30,27 +30,58 @@ below.
 > Note: The 'source' and 'hostname' variables are automatically provided to you. Hostname contains the FQDN name of the server (or the IP if it 
 > can't get resolved) and 'source' contains the IP address (with no lookups)
 
-### Example
+### Basic Extension Configuration
+
 
      {
       "snmp": {
-        "traps": [
-          {
-            "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
-            "trap": {   This describes template variables (key) and the OID/MIB's to use for their values
-              "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1.0"   Will make heartbeatrate = valueOf(1.3.6...)
-            },
-            "event": {
-              "name": "snmp-trap-{hostname}", # {hostname} and {source} (the ip) are automatically provided template variables
-              "status": 1,
-               "output": "Heartbeat Rate {heartbeatrate}",  {heartbeatrate} is a template variable described by [:trap][:heartbeatrate] above
-               "handler": "default"
-               }
-             }
-           }
-         ]
+ 
        }
      }
+
+### Trap Configuration
+
+Each SNMP Trap is configured in its own configuration file. This lets you easily create configuration through Puppet/Chef etc without
+having to manipulate the same configuration file.
+
+Simply create a uniquely named json file in `/etc/sensu/traps.d` containing the definition of the trap(s) you wish to capture and
+act upon.
+
+
+    [
+      {
+        "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
+        "trap": {
+          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1.0" 
+        },
+        "event": {
+          "name": "snmp-trap-{hostname}",
+          "status": 1,
+          "output": "Heartbeat Rate {heartbeatrate}", 
+          "handler": "default"
+         }
+       },
+       ...
+     ]
+
+The JSON file is an array of trap definitions containing:
+
+* trap_oid
+  * Definition: (String) The OID to monitor for events on
+* trap
+  * Definition: (Array) Key/Value pairs representing named variables (key) against the OID values of the message elements (value)
+    which can then be used as template values in the event section
+* event
+  * Definition: (Hash) The event to trigger if the SNMP trap is recieved - Accepts any value that will then get sent to sensu
+    as a normal check event - this includes handlers, subdues, or custom key/value pairs as you require.
+  * name
+    * Definition: (String) The name of the sensu check that is sent to the sensu-client - ALPHANUMERIC and should be fairly unique (Required)
+  * status
+    * Definition: (Numeric) The numeric status of the status (0-OK, 1-Warning, 2-Critical, 3-Unknown) (Required)
+  * output
+    * Definition: (String) The message to send to the sensu client (Required)
+  * handler
+    * Definition: (String) The handler that the sensu-server should use to process this event (Optional)
 
 
 ## Appendix 
