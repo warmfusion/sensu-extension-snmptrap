@@ -2,8 +2,7 @@
 
 Creates an SNMP trap listening to all incoming traps on the configured interface and triggers events into sensu as JIT events when specifying the source of the event.
 
-[ ![Build Status](https://travis-ci.org/warmfusion/sensu-extension-snmptrap.svg)](https://travis-ci.org/warmfusion/sensu-extension-snmptrap)
-
+[![Build Status](https://travis-ci.org/warmfusion/sensu-extension-snmptrap.svg)](https://travis-ci.org/warmfusion/sensu-extension-snmptrap)
 
 ## TODO
 
