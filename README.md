@@ -2,6 +2,9 @@
 
 Creates an SNMP trap listening to all incoming traps on the configured interface and triggers events into sensu as JIT events when specifying the source of the event.
 
+[ ![Build Status](https://travis-ci.org/warmfusion/sensu-extension-snmptrap.svg)](https://travis-ci.org/warmfusion/sensu-extension-snmptrap)
+
+
 ## TODO
 
 Also able to run as a 'polling' service in either Check or Metrics mode where values can be directly compared against expectations (eg value > 10)

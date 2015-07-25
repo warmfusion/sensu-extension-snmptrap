@@ -1,38 +1,53 @@
-# SNMP
-# ===
+#! /usr/bin/env ruby
 #
-# Creates an SNMP trap listening to all incoming traps on any interface
-# and triggers events into sensu as JIT clients specifying the source
-# of the event.
+#   extension-snmptrap.rb
 #
-# Also able to run as a 'polling' service in either Check or Metrics mode
-# where values can be directly compared against expectations (eg value > 10)
-# or where values are sent to Sensu as metrics values for charting or
-# other purposes.
+# DESCRIPTION:
+#   Handles incoming SNMP Traps and emits sensu events
+#   Creates an SNMP trap listening to all incoming traps on any interface and triggers events into sensu as JIT clients specifying the source of the event.
 #
-# {
-#  "snmp": { }
-# }
+#   Also able to run as a 'polling' service in either Check or Metrics mode
+#   where values can be directly compared against expectations (eg value > 10)
+#   or where values are sent to Sensu as metrics values for charting or
+#   other purposes.
 #
-# ## Trap Configuration
+#       {
+#        "snmp": { }
+#       }
 #
+# OUTPUT:
+#   N/A - Extension submits multiple events of different types based on snmp configuration
+#
+# PLATFORMS:
+#   Linux
+#
+# DEPENDENCIES:
+#   gem: snmp
+#
+# USAGE:
 #  Traps are configured in /etc/sensu/traps.d directory, one json file containing one or more trap configurations
 #  as described in the README.md that accompanies this script.
+#
+# NOTES:
+#   No special notes. This should be fairly straight forward.
+#
+# LICENSE:
+#   Toby Jackson <toby@warmfusion.co.uk>
+#   Peter Daugavietis <pdaugavietis@gmail.com>
+#   Released under the same terms as Sensu (the MIT license); see LICENSE
+#   for details.
 #
 #
 # ##############################
 # Handy Test script:
 # snmptrap -v 2c -c public localhost:1062 "" NET-SNMP-EXAMPLES-MIB::netSnmpExampleHeartbeatNotification  netSnmpExampleHeartbeatRate i 123456
 #
-#
-# Released under the same terms as Sensu (the MIT license); see LICENSE
-# for details.
-#
 # Useful SNMP browser to help find things:
 # http://tools.cisco.com/Support/SNMP/do/BrowseOID.do?local=en&translate=Translate&objectInput=1.3.6.1.2.1.1.5
 #
 # http://www.net-snmp.org/docs/mibs/ucdavis.html#laTable
 # Load Average Last Minute -  .1.3.6.1.4.1.2021.10.1.3.1
+#
 require 'net/http'
 require 'snmp'
 require 'json'
