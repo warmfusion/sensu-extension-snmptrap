@@ -204,9 +204,9 @@ module Sensu
           @logger.debug key.inspect + ', ' + value.inspect
           @logger.debug trap.varbind_list.inspect
           val = trap.varbind_list.find{|vb| vb.name == value}
-          if (val.nil?){
+          if (val.nil?)
             @logger.warn("trap.#{key} has OID(#{value}) that was not found in incoming trap - Check your configuration")
-          }
+          end
           @logger.debug("Discovered value of #{key} is '#{val}'")
           fields[key] = val.value unless val.nil?
         end
@@ -216,17 +216,14 @@ module Sensu
         # Replace any {template} values in the event with the value of
         # snmp values defined in the traps configuration
         fields.each do |key,value|
-          trapdef['event'].each{|k,v|
+          trapdef['event'].each do |k,v|
             @logger.debug("Looking for #{key} in #{trapdef['event'][k]}")
             trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/','-') ) rescue v
-          }
+          end
         end
-
         @logger.debug trapdef['event']
         publish_check_result trapdef['event']
-
       end
-
     end
   end
 end
