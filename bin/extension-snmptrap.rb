@@ -59,7 +59,7 @@ module Sensu
       # assume the /etc/sensu/extensions folder as location for relative
       data_path = File.expand_path(File.dirname(__FILE__) + '/../mibs')
 
-      DEFAULT_MIB_PATH=nil
+      DEFAULT_MIB_PATH = nil
       if File.exist?(data_path)
         DEFAULT_MIB_PATH = data_path
       else
@@ -101,7 +101,7 @@ module Sensu
         # Setup SNMPTrap
         @logger.debug "Loading SNMPTrap definitions from #{options[:trapdefs_dir]}"
         @trapdefs = []
-        Dir.glob(options[:trapdefs_dir] + "/*.json") do |file|
+        Dir.glob(options[:trapdefs_dir] + '/*.json') do |file|
           # do something with the file here
           @logger.info file
           @trapdefs.concat Array(JSON.parse(File.read(file)))
@@ -110,11 +110,11 @@ module Sensu
         @logger.debug @trapdefs.to_json
 
         @mibs = []
-        Dir.glob(options[:mibs_dir] + '/*.yaml') {|file|
+        Dir.glob(options[:mibs_dir] + '/*.yaml') do |file|
           # do something with the file here
           @logger.debug "Reading MIB configuration from #{File.basename(file, '.yaml')}"
           @mibs << File.basename(file, '.yaml')
-        }
+        end
         @logger.debug @mibs.to_json
 
         start_trap_listener
@@ -129,7 +129,7 @@ module Sensu
       def start_trap_listener
         @logger.info('Starting SNMP Trap listener...')
 
-        SNMP::TrapListener.new( Host: options[:bind], Port: options[:port]) do |manager|
+        SNMP::TrapListener.new(Host: options[:bind], Port: options[:port]) do |manager|
           # Need patched Gem to allow the following functions/lookups
           # Need to copy the MIBs from somewhere to the Gem location needed (or fix the importing mechanism too)
 
@@ -188,10 +188,10 @@ module Sensu
       end
 
       def process_v2c_trap(trap, trapdef)
-        hostname=trap.source_ip
+        hostname = trap.source_ip
         begin
-          hostname=Resolv.getname(trap.source_ip)
-        rescue Resolv::ResolvError => re
+          hostname = Resolv.getname(trap.source_ip)
+        rescue Resolv::ResolvError
           @logger.debug("Unable to resolve name for #{trap.source_ip}")
         end
 
@@ -202,8 +202,8 @@ module Sensu
         @logger.debug('Checking trap definition for key/value template pairs')
         Array(trapdef['trap']).each do |key, value|
           begin
-            value=SNMP::ObjectId.new(value) 
-          rescue 
+            value = SNMP::ObjectId.new(value)
+          rescue
             value = SNMP::ObjectId.new(@mib.oid(value))
           end
 
@@ -222,11 +222,11 @@ module Sensu
         # Replace any {template} values in the event with the value of
         # snmp values defined in the traps configuration
         fields.each do |key, value|
-          trapdef['event'].each do |k,v|
+          trapdef['event'].each do |k, v|
             @logger.debug("Looking for #{key} in #{trapdef['event'][k]}")
             begin
-              trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/', '-')) 
-            rescue 
+              trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/', '-'))
+            rescue
               trapdef['event'][k] = v
             end
           end
