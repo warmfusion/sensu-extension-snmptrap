@@ -12,7 +12,7 @@ end
 pvt_key = '~/.ssh/gem-private_key.pem'
 
 Gem::Specification.new do |s|
-  s.authors                = ['Toby Jackson <toby@warmfusion.co.uk>',
+  s.authors                = [ 'Toby Jackson <toby@warmfusion.co.uk>',
                                'Peter Daugavietis <pdaugavietis@gmail.com>']
   s.cert_chain             = ['certs/sensu-plugins.pem']
   s.date                   = Date.today.to_s
