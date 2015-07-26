@@ -165,7 +165,6 @@ module Sensu
                 break
               end
               @logger.debug "Ignoring unrecognised trap: #{trap.trap_oid}" unless processed
-              end
             end
           end
 
