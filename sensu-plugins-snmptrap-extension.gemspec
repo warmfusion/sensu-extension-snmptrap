@@ -12,8 +12,8 @@ end
 pvt_key = '~/.ssh/gem-private_key.pem'
 
 Gem::Specification.new do |s|
-  s.authors                = [ 'Toby Jackson <toby@warmfusion.co.uk>',
-                               'Peter Daugavietis <pdaugavietis@gmail.com>']
+  s.authors                = ['Toby Jackson <toby@warmfusion.co.uk>',
+                              'Peter Daugavietis <pdaugavietis@gmail.com>']
   s.cert_chain             = ['certs/sensu-plugins.pem']
   s.date                   = Date.today.to_s
   s.description            = 'Sensu extension for trapping SNMP events and reemiting as templated events'
