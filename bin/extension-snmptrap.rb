@@ -169,12 +169,12 @@ module Sensu
                 end
               end
               @logger.debug "Ignoring unrecognised trap: #{trap.trap_oid.to_s}" +  unless processed
+              end
             end
           end
+
+          @logger.info("SNMP Trap listener has started on #{options[:bind]}:#{options[:port]}")
         end
-
-        @logger.info("SNMP Trap listener has started on #{options[:bind]}:#{options[:port]}")
-
       end
 
       private
@@ -184,12 +184,12 @@ module Sensu
       def publish_check_result (check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-          @logger.info "Sending SNMP check event: #{check.to_json}"
+        @logger.info "Sending SNMP check event: #{check.to_json}"
 
-          host = settings[:client][:bind] ||= '127.0.0.1'
-          port = settings[:client][:port] ||= '3030'
-          t = TCPSocket.new host, port
-          t.write(check.to_json + "\n")
+        host = settings[:client][:bind] ||= '127.0.0.1'
+        port = settings[:client][:port] ||= '3030'
+        t = TCPSocket.new host, port
+        t.write(check.to_json + "\n")
       end
 
       def process_v2c_trap(trap, trapdef)
@@ -197,7 +197,7 @@ module Sensu
         fields = Hash.new
         fields[:source] = trap.source_ip
         fields[:hostname] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
-       
+
         @logger.debug('Checking trap definition for key/value template pairs')
         Array(trapdef['trap']).each do |key,value|
           value = SNMP::ObjectId.new(value) rescue SNMP::ObjectId.new(@mib.oid(value))
