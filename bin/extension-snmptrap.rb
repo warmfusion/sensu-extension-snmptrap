@@ -1,38 +1,53 @@
-# SNMP
-# ===
+#! /usr/bin/env ruby
 #
-# Creates an SNMP trap listening to all incoming traps on any interface
-# and triggers events into sensu as JIT clients specifying the source
-# of the event.
+#   extension-snmptrap.rb
 #
-# Also able to run as a 'polling' service in either Check or Metrics mode
-# where values can be directly compared against expectations (eg value > 10)
-# or where values are sent to Sensu as metrics values for charting or
-# other purposes.
+# DESCRIPTION:
+#   Handles incoming SNMP Traps and emits sensu events
+#   Creates an SNMP trap listening to all incoming traps on any interface and triggers events into sensu as JIT clients specifying the source of the event.
 #
-# {
-#  "snmp": { }
-# }
+#   Also able to run as a 'polling' service in either Check or Metrics mode
+#   where values can be directly compared against expectations (eg value > 10)
+#   or where values are sent to Sensu as metrics values for charting or
+#   other purposes.
 #
-# ## Trap Configuration
+#       {
+#        "snmp": { }
+#       }
 #
+# OUTPUT:
+#   N/A - Extension submits multiple events of different types based on snmp configuration
+#
+# PLATFORMS:
+#   Linux
+#
+# DEPENDENCIES:
+#   gem: snmp
+#
+# USAGE:
 #  Traps are configured in /etc/sensu/traps.d directory, one json file containing one or more trap configurations
 #  as described in the README.md that accompanies this script.
+#
+# NOTES:
+#   No special notes. This should be fairly straight forward.
+#
+# LICENSE:
+#   Toby Jackson <toby@warmfusion.co.uk>
+#   Peter Daugavietis <pdaugavietis@gmail.com>
+#   Released under the same terms as Sensu (the MIT license); see LICENSE
+#   for details.
 #
 #
 # ##############################
 # Handy Test script:
 # snmptrap -v 2c -c public localhost:1062 "" NET-SNMP-EXAMPLES-MIB::netSnmpExampleHeartbeatNotification  netSnmpExampleHeartbeatRate i 123456
 #
-#
-# Released under the same terms as Sensu (the MIT license); see LICENSE
-# for details.
-#
 # Useful SNMP browser to help find things:
 # http://tools.cisco.com/Support/SNMP/do/BrowseOID.do?local=en&translate=Translate&objectInput=1.3.6.1.2.1.1.5
 #
 # http://www.net-snmp.org/docs/mibs/ucdavis.html#laTable
 # Load Average Last Minute -  .1.3.6.1.4.1.2021.10.1.3.1
+#
 require 'net/http'
 require 'snmp'
 require 'json'
@@ -41,14 +56,14 @@ include SNMP
 module Sensu
   module Extension
     class SNMPTrapHandler < Check
-
       # assume the /etc/sensu/extensions folder as location for relative
-      data_path = File.expand_path(File.dirname(__FILE__) + "/../mibs")
-      DEFAULT_MIB_PATH = if (File.exist?(data_path))
-        data_path
+      data_path = File.expand_path(File.dirname(__FILE__) + '/../mibs')
+
+      DEFAULT_MIB_PATH = nil
+      if File.exist?(data_path)
+        DEFAULT_MIB_PATH = data_path
       else
         @logger.info "Could not find default MIB directory, tried:\n  #{data_path}"
-        nil
       end
 
       def name
@@ -86,36 +101,35 @@ module Sensu
         # Setup SNMPTrap
         @logger.debug "Loading SNMPTrap definitions from #{options[:trapdefs_dir]}"
         @trapdefs = []
-        Dir.glob (options[:trapdefs_dir] + "/*.json") { |file|
+        Dir.glob(options[:trapdefs_dir] + '/*.json') do |file|
           # do something with the file here
           @logger.info file
           @trapdefs.concat Array(JSON.parse(File.read(file)))
-        }
+        end
+
         @logger.debug @trapdefs.to_json
 
         @mibs = []
-        Dir.glob(options[:mibs_dir] + "/*.yaml") {|file|
+        Dir.glob(options[:mibs_dir] + '/*.yaml') do |file|
           # do something with the file here
           @logger.debug "Reading MIB configuration from #{File.basename(file, '.yaml')}"
           @mibs << File.basename(file, '.yaml')
-        }
+        end
         @logger.debug @mibs.to_json
 
         start_trap_listener
       end
 
-      def run(data=nil, options={}, &callback)
+      def run(_data = nil, _options = {}, &callback)
         @logger.warn('SNMP Trap: Run called as a check - this is not supported')
         output = 'SNMPHandler extension should not be called as a standalone check'
         callback.call(output, 3)
       end
 
       def start_trap_listener
+        @logger.info('Starting SNMP Trap listener...')
 
-        @logger.info("Starting SNMP Trap listener...")
-
-        m = SNMP::TrapListener.new(:Host => options[:bind], :Port => options[:port]) do |manager|
-
+        SNMP::TrapListener.new(Host: options[:bind], Port: options[:port]) do |manager|
           # Need patched Gem to allow the following functions/lookups
           # Need to copy the MIBs from somewhere to the Gem location needed (or fix the importing mechanism too)
 
@@ -132,66 +146,73 @@ module Sensu
 
           manager.on_trap_v2c do |trap|
             @logger.info('v2-Trap caught')
-            @logger.info( trap.to_json )
+            @logger.info(trap.to_json)
 
             processed = false
             @trapdefs.each do |trapdef|
-              processed = false
-              @trapdefs.each do |trapdef|
-                if !trapdef['trap_oid'].nil?
-                  trapdef_oid = SNMP::ObjectId.new(trapdef['trap_oid'])
-                else
-                  trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef[:trap_name]))
-                end
-                @logger.debug 'trapdef ' + trapdef_oid.inspect
-                @logger.debug 'trap ' + trap.trap_oid.inspect
-                # only accept configured traps
-                if trap.trap_oid == trapdef_oid
-                  @logger.info "Processing known v2 trap #{trap.trap_oid.to_s}"
-                  process_v2c_trap trap, trapdef
-                  processed = true
-                  break
-                end
+              if !trapdef['trap_oid'].nil?
+                trapdef_oid = SNMP::ObjectId.new(trapdef['trap_oid'])
+              else
+                trapdef_oid = SNMP::ObjectId.new(@mib.oid(trapdef[:trap_name]))
               end
-              @logger.debug "Ignoring unrecognised trap: #{trap.trap_oid.to_s}" +  unless processed
+              @logger.debug 'trapdef ' + trapdef_oid.inspect
+              @logger.debug 'trap ' + trap.trap_oid.inspect
+              # only accept configured traps
+              if trap.trap_oid == trapdef_oid
+                @logger.info "Processing known v2 trap #{trap.trap_oid}"
+                process_v2c_trap trap, trapdef
+                processed = true
+                break
+              end
+              @logger.debug "Ignoring unrecognised trap: #{trap.trap_oid}" unless processed
             end
           end
+
+          @logger.info("SNMP Trap listener has started on #{options[:bind]}:#{options[:port]}")
         end
-
-        @logger.info("SNMP Trap listener has started on #{options[:bind]}:#{options[:port]}")
-
       end
 
       private
 
       # Doesn't appear to be possible to ping Sensu directly for async event triggering
       # even though we're inside Sensu right now...
-      def publish_check_result (check)
+      def publish_check_result(check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-          @logger.info "Sending SNMP check event: #{check.to_json}"
+        @logger.info "Sending SNMP check event: #{check.to_json}"
 
-          host = settings[:client][:bind] ||= '127.0.0.1'
-          port = settings[:client][:port] ||= '3030'
-          t = TCPSocket.new host, port
-          t.write(check.to_json + "\n")
+        host = settings[:client][:bind] ||= '127.0.0.1'
+        port = settings[:client][:port] ||= '3030'
+        t = TCPSocket.new host, port
+        t.write(check.to_json + "\n")
       end
 
       def process_v2c_trap(trap, trapdef)
+        hostname = trap.source_ip
+        begin
+          hostname = Resolv.getname(trap.source_ip)
+        rescue Resolv::ResolvError
+          @logger.debug("Unable to resolve name for #{trap.source_ip}")
+        end
 
-        fields = Hash.new
+        fields = {}
         fields[:source] = trap.source_ip
-        fields[:hostname] = ( Resolv.getname(trap.source_ip) rescue trap.source_ip)
-       
+        fields[:hostname] = hostname
+
         @logger.debug('Checking trap definition for key/value template pairs')
-        Array(trapdef['trap']).each do |key,value|
-          value = SNMP::ObjectId.new(value) rescue SNMP::ObjectId.new(@mib.oid(value))
+        Array(trapdef['trap']).each do |key, value|
+          begin
+            value = SNMP::ObjectId.new(value)
+          rescue
+            value = SNMP::ObjectId.new(@mib.oid(value))
+          end
+
           @logger.debug key.inspect + ', ' + value.inspect
           @logger.debug trap.varbind_list.inspect
-          val = trap.varbind_list.find{|vb| vb.name == value}
-          if (val.nil?){
+          val = trap.varbind_list.find { |vb| vb.name == value }
+          if val.nil?
             @logger.warn("trap.#{key} has OID(#{value}) that was not found in incoming trap - Check your configuration")
-          }
+          end
           @logger.debug("Discovered value of #{key} is '#{val}'")
           fields[key] = val.value unless val.nil?
         end
@@ -200,18 +221,19 @@ module Sensu
 
         # Replace any {template} values in the event with the value of
         # snmp values defined in the traps configuration
-        fields.each do |key,value|
-          trapdef['event'].each{|k,v|
+        fields.each do |key, value|
+          trapdef['event'].each do |k, v|
             @logger.debug("Looking for #{key} in #{trapdef['event'][k]}")
-            trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/','-') ) rescue v
-          }
+            begin
+              trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/', '-'))
+            rescue
+              trapdef['event'][k] = v
+            end
+          end
         end
-
         @logger.debug trapdef['event']
         publish_check_result trapdef['event']
-
       end
-
     end
   end
 end
