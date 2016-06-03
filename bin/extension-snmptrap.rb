@@ -105,7 +105,7 @@ module Sensu
           Dir.glob(options[:trapdefs_dir] + '/*.json') do |file|
             # do something with the file here
             @logger.info file
-            @trapdefs.concat Array(JSON.parse(File.read(file)))
+            @trapdefs.concat Array(::JSON.parse(File.read(file)))
           end
 
           @logger.debug @trapdefs.to_json
