@@ -3,16 +3,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 This CHANGELOG follows the format listed at [Keep A Changelog](http://keepachangelog.com/)
 
-## Unreleased
+
+## [Unreleased]
 ### Added
-- Rake, gemspecs and basic core test code
-- This CHANGELOG
-- Travis configuration for test building
 
 ### Changed
-- Moved script to bin sub-directory as part of refactor to adhere to sensu-plugin conventions
+
+## [0.2.0] - 2016-06-04
+### Added
+- README: Instructions on installation
+
+### Fixed
+- Log message handling from @amdprophet
+- Autodiscovery of sensu-client's JIT event socket
+- Better handling when the event socket is missing/unconfigured
 
 
-## 0.0.1 - 2015-05-20
+### Changed
+- README: Reformatting and extended examples
+- Reduced the log noise by reducing the log severity on a number of messages
+
+
+
+## [0.1.0] - 2016-06-04
 ### Added
 - initial release

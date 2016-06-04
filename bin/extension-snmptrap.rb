@@ -4,16 +4,28 @@
 #
 # DESCRIPTION:
 #   Handles incoming SNMP Traps and emits sensu events
-#   Creates an SNMP trap listening to all incoming traps on any interface and triggers events into sensu as JIT clients specifying the source of the event.
+#   Creates an SNMP trap listening to all incoming traps on any interface and
+#   triggers events into sensu as JIT clients specifying the source of the event.
 #
-#   Also able to run as a 'polling' service in either Check or Metrics mode
-#   where values can be directly compared against expectations (eg value > 10)
-#   or where values are sent to Sensu as metrics values for charting or
-#   other purposes.
 #
 #       {
 #        "snmp": { }
 #       }
+#
+#   Default options are;
+#      {
+#        "snmp": {
+#          bind: '0.0.0.0',
+#          port: 1062,
+#          community: 'public',
+#          handler: 'default',
+#          send_interval: 60,
+#          trapdefs_dir: '/etc/sensu/traps.d',
+#          mibs_dir: '/etc/sensu/mibs',
+#          client_socket_bind: settings[:client][:socket][:bind],
+#          client_socket_port: settings[:client][:socket][:port]
+#        }
+#      }
 #
 # OUTPUT:
 #   N/A - Extension submits multiple events of different types based on snmp configuration
@@ -73,7 +85,9 @@ module Sensu
           handler: 'default',
           send_interval: 60,
           trapdefs_dir: '/etc/sensu/traps.d',
-          mibs_dir: '/etc/sensu/mibs'
+          mibs_dir: '/etc/sensu/mibs',
+          client_socket_bind: settings[:client][:socket][:bind],
+          client_socket_port: settings[:client][:socket][:port]
         }
         @options.merge!(@settings[:snmp]) if @settings[:snmp].is_a?(Hash)
         @options
@@ -88,9 +102,10 @@ module Sensu
       end
 
       def validate
-        unless File.exist?(options[:mibs_dir])
-          @logger.info "could not find default MIB directory, tried: #{options[:mibs_dir]}"
-          return false
+
+        if options[:client_socket_bind].nil?
+          @logger.warn "couldnt find client socket binding - is it defined? https://sensuapp.org/docs/latest/reference/clients.html#socket-attributes"
+          false
         end
         true
       end
@@ -103,11 +118,11 @@ module Sensu
           @logger.debug "loading SNMPTrap definitions from #{options[:trapdefs_dir]}"
           @trapdefs = []
           Dir.glob(options[:trapdefs_dir] + '/*.json') do |file|
-            # do something with the file here
-            @logger.info file
+            @logger.debug "Reading #{file}..."
             @trapdefs.concat Array(::JSON.parse(File.read(file)))
           end
 
+          @logger.debug "loaded trapdefs..."
           @logger.debug @trapdefs.to_json
 
           @mibs = []
@@ -129,7 +144,7 @@ module Sensu
       end
 
       def start_trap_listener
-        @logger.info('starting SNMP trap listener...')
+        @logger.info('starting SNMPTrap listener...')
 
         SNMP::TrapListener.new(Host: options[:bind], Port: options[:port]) do |manager|
           # Need patched Gem to allow the following functions/lookups
@@ -142,13 +157,11 @@ module Sensu
           # @mib = manager.mib
 
           manager.on_trap_v1 do |trap|
-            @logger.info('v1-Trap caught')
-            @logger.info trap.to_json
+            @logger.warn('SNMPTrap caught an snmp v1 trap which not currently handled')
           end
 
           manager.on_trap_v2c do |trap|
-            @logger.info('v2-Trap caught')
-            @logger.info(trap.to_json)
+            @logger.debug('v2-Trap caught')
 
             processed = false
             @trapdefs.each do |trapdef|
@@ -161,7 +174,7 @@ module Sensu
               @logger.debug 'trap ' + trap.trap_oid.inspect
               # only accept configured traps
               if trap.trap_oid == trapdef_oid
-                @logger.info "processing known v2 trap #{trap.trap_oid}"
+                @logger.info "SNMPTrap is processing a defined snmp v2 trap oid:#{trap.trap_oid}"
                 process_v2c_trap trap, trapdef
                 processed = true
                 break
@@ -170,7 +183,7 @@ module Sensu
             end
           end
 
-          @logger.info("SNMP trap listener has started on #{options[:bind]}:#{options[:port]}")
+          @logger.info("SNMPTrap listener has started on #{options[:bind]}:#{options[:port]}")
         end
       end
 
@@ -181,12 +194,18 @@ module Sensu
       def publish_check_result(check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-        @logger.info "ending SNMP check event: #{check.to_json}"
+        @logger.debug "sending SNMP check event: #{check.to_json}"
 
-        host = settings[:client][:bind] ||= '127.0.0.1'
-        port = settings[:client][:port] ||= '3030'
-        t = TCPSocket.new host, port
-        t.write(check.to_json + "\n")
+        host = options[:client_socket_bind]
+        port = options[:client_socket_port]
+
+        begin
+          @logger.debug "opening connection to #{host}:#{port}"
+          t = TCPSocket.new host, port
+          t.write(check.to_json + "\n")
+        rescue Exception => e
+          @logger.error(e)
+        end
       end
 
       def process_v2c_trap(trap, trapdef)
