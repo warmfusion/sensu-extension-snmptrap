@@ -56,16 +56,6 @@ include SNMP
 module Sensu
   module Extension
     class SNMPTrapHandler < Check
-      # assume the /etc/sensu/extensions folder as location for relative
-      data_path = File.expand_path(File.dirname(__FILE__) + '/../mibs')
-
-      DEFAULT_MIB_PATH = nil
-      if File.exist?(data_path)
-        DEFAULT_MIB_PATH = data_path
-      else
-        @logger.info "Could not find default MIB directory, tried:\n  #{data_path}"
-      end
-
       def name
         'SnmpTrapHandler'
       end
@@ -97,37 +87,49 @@ module Sensu
         }
       end
 
+      def validate
+        unless File.exist?(options[:mibs_dir])
+          @logger.info "could not find default MIB directory, tried: #{options[:mibs_dir]}"
+          return false
+        end
+        true
+      end
+
       def post_init
-        # Setup SNMPTrap
-        @logger.debug "Loading SNMPTrap definitions from #{options[:trapdefs_dir]}"
-        @trapdefs = []
-        Dir.glob(options[:trapdefs_dir] + '/*.json') do |file|
-          # do something with the file here
-          @logger.info file
-          @trapdefs.concat Array(JSON.parse(File.read(file)))
+        if !validate
+          @logger.error "failed to validate the #{name} extension"
+        else
+          # Setup SNMPTrap
+          @logger.debug "loading SNMPTrap definitions from #{options[:trapdefs_dir]}"
+          @trapdefs = []
+          Dir.glob(options[:trapdefs_dir] + '/*.json') do |file|
+            # do something with the file here
+            @logger.info file
+            @trapdefs.concat Array(::JSON.parse(File.read(file)))
+          end
+
+          @logger.debug @trapdefs.to_json
+
+          @mibs = []
+          Dir.glob(options[:mibs_dir] + '/*.yaml') do |file|
+            # do something with the file here
+            @logger.debug "reading MIB configuration from #{File.basename(file, '.yaml')}"
+            @mibs << File.basename(file, '.yaml')
+          end
+          @logger.debug @mibs.to_json
+
+          start_trap_listener
         end
-
-        @logger.debug @trapdefs.to_json
-
-        @mibs = []
-        Dir.glob(options[:mibs_dir] + '/*.yaml') do |file|
-          # do something with the file here
-          @logger.debug "Reading MIB configuration from #{File.basename(file, '.yaml')}"
-          @mibs << File.basename(file, '.yaml')
-        end
-        @logger.debug @mibs.to_json
-
-        start_trap_listener
       end
 
       def run(_data = nil, _options = {}, &callback)
-        @logger.warn('SNMP Trap: Run called as a check - this is not supported')
+        @logger.warn('SNMP trap: run called as a check - this is not supported')
         output = 'SNMPHandler extension should not be called as a standalone check'
         callback.call(output, 3)
       end
 
       def start_trap_listener
-        @logger.info('Starting SNMP Trap listener...')
+        @logger.info('starting SNMP trap listener...')
 
         SNMP::TrapListener.new(Host: options[:bind], Port: options[:port]) do |manager|
           # Need patched Gem to allow the following functions/lookups
@@ -159,16 +161,16 @@ module Sensu
               @logger.debug 'trap ' + trap.trap_oid.inspect
               # only accept configured traps
               if trap.trap_oid == trapdef_oid
-                @logger.info "Processing known v2 trap #{trap.trap_oid}"
+                @logger.info "processing known v2 trap #{trap.trap_oid}"
                 process_v2c_trap trap, trapdef
                 processed = true
                 break
               end
-              @logger.debug "Ignoring unrecognised trap: #{trap.trap_oid}" unless processed
+              @logger.debug "ignoring unrecognised trap: #{trap.trap_oid}" unless processed
             end
           end
 
-          @logger.info("SNMP Trap listener has started on #{options[:bind]}:#{options[:port]}")
+          @logger.info("SNMP trap listener has started on #{options[:bind]}:#{options[:port]}")
         end
       end
 
@@ -179,7 +181,7 @@ module Sensu
       def publish_check_result(check)
         # a little risky: we're assuming Sensu-Client is listening on Localhost:3030
         # for submitted results : https://sensuapp.org/docs/latest/clients#client-socket-input
-        @logger.info "Sending SNMP check event: #{check.to_json}"
+        @logger.info "ending SNMP check event: #{check.to_json}"
 
         host = settings[:client][:bind] ||= '127.0.0.1'
         port = settings[:client][:port] ||= '3030'
@@ -192,14 +194,14 @@ module Sensu
         begin
           hostname = Resolv.getname(trap.source_ip)
         rescue Resolv::ResolvError
-          @logger.debug("Unable to resolve name for #{trap.source_ip}")
+          @logger.debug("unable to resolve name for #{trap.source_ip}")
         end
 
         fields = {}
         fields[:source] = trap.source_ip
         fields[:hostname] = hostname
 
-        @logger.debug('Checking trap definition for key/value template pairs')
+        @logger.debug('checking trap definition for key/value template pairs')
         Array(trapdef['trap']).each do |key, value|
           begin
             value = SNMP::ObjectId.new(value)
@@ -211,19 +213,19 @@ module Sensu
           @logger.debug trap.varbind_list.inspect
           val = trap.varbind_list.find { |vb| vb.name == value }
           if val.nil?
-            @logger.warn("trap.#{key} has OID(#{value}) that was not found in incoming trap - Check your configuration")
+            @logger.warn("trap.#{key} has OID(#{value}) that was not found in incoming trap - check your configuration")
           end
-          @logger.debug("Discovered value of #{key} is '#{val}'")
+          @logger.debug("discovered value of #{key} is '#{val}'")
           fields[key] = val.value unless val.nil?
         end
 
-        @logger.debug("Template fields are: #{fields.inspect}")
+        @logger.debug("template fields are: #{fields.inspect}")
 
         # Replace any {template} values in the event with the value of
         # snmp values defined in the traps configuration
         fields.each do |key, value|
           trapdef['event'].each do |k, v|
-            @logger.debug("Looking for #{key} in #{trapdef['event'][k]}")
+            @logger.debug("looking for #{key} in #{trapdef['event'][k]}")
             begin
               trapdef['event'][k] = v.gsub("{#{key}}", value.to_s.gsub('/', '-'))
             rescue
