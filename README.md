@@ -4,6 +4,17 @@ Creates an SNMP trap listening to all incoming traps on the configured interface
 
 [![Build Status](https://travis-ci.org/warmfusion/sensu-extension-snmptrap.svg)](https://travis-ci.org/warmfusion/sensu-extension-snmptrap)
 
+[![Gem Version](https://badge.fury.io/rb/sensu-plugins-snmptrap-extension.svg)](https://badge.fury.io/rb/sensu-plugins-snmptrap-extension)
+
+
+# Installation
+
+```
+gem install sensu-plugins-snmptrap-extension
+ln -s $(gem which sensu-plugins-snmptrap-extension) /etc/sensu/extensions/snmptrap
+
+```
+
 ## TODO
 
 Also able to run as a 'polling' service in either Check or Metrics mode where values can be directly compared against expectations (eg value > 10)
@@ -29,7 +40,7 @@ event being sent to Sensu. This includes handlers, names (Only AlphaNumeric allo
 Simply wrap your template in braces and it will be automatically replaced during processing. See the heartbeatrate in the example
 below.
 
-> Note: The 'source' and 'hostname' variables are automatically provided to you. Hostname contains the FQDN name of the server (or the IP if it 
+> Note: The 'source' and 'hostname' variables are automatically provided to you. Hostname contains the FQDN name of the server (or the IP if it
 > can't get resolved) and 'source' contains the IP address (with no lookups)
 
 ### Basic Extension Configuration
@@ -37,7 +48,7 @@ below.
 
      {
       "snmp": {
- 
+
        }
      }
 
@@ -54,12 +65,12 @@ act upon.
       {
         "trap_oid": "1.3.6.1.4.1.8072.2.3.0.1",
         "trap": {
-          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1" 
+          "heartbeatrate": "1.3.6.1.4.1.8072.2.3.2.1"
         },
         "event": {
           "name": "snmp-trap-{hostname}",
           "status": 1,
-          "output": "Heartbeat Rate {heartbeatrate}", 
+          "output": "Heartbeat Rate {heartbeatrate}",
           "handler": "default"
          }
        },
@@ -86,11 +97,11 @@ The JSON file is an array of trap definitions containing:
     * Definition: (String) The handler that the sensu-server should use to process this event (Optional)
 
 
-## Appendix 
+## Appendix
 
 Handy Test script:
 
     snmptrap -v 2c -c public localhost:1062 "" NET-SNMP-EXAMPLES-MIB::netSnmpExampleHeartbeatNotification  netSnmpExampleHeartbeatRate i 123456
 
 
-Released under the same terms as Sensu (the MIT license). 
+Released under the same terms as Sensu (the MIT license).
