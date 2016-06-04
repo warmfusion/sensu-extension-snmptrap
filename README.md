@@ -36,7 +36,7 @@ and includes a traps configuration element that describes:
 * An array of traps that the extension will monitor for events (from any host) which includes
     * `trap_oid` - the identity of the trap
     * `trap` - A hash of key/value pairs that can be used as template values in the event
-    * `event` - The template event to send to Sensu, including {template} variables for customisation based on the message
+    * `event` - The template event to send to Sensu, including `{template}` variables for customisation based on the message
 
 
 ### Trap Configuration
