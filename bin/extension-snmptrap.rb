@@ -102,7 +102,6 @@ module Sensu
       end
 
       def validate
-
         if options[:client_socket_bind].nil?
           @logger.warn 'couldnt find client socket binding - is it defined? https://sensuapp.org/docs/latest/reference/clients.html#socket-attributes'
           false

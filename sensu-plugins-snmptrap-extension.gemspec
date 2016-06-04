@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.email                  = '<toby@warmfusion.co.uk>'
   s.executables            = Dir.glob('bin/**/*.rb').map { |file| File.basename(file) }
   s.files                  = Dir.glob('{bin,lib}/**/*') + %w(LICENSE README.md CHANGELOG.md)
-  s.homepage               = 'https://github.com/warmfusion/sensu-sensu-extension-snmptrap'
+  s.homepage               = 'https://github.com/warmfusion/sensu-extension-snmptrap'
   s.license                = 'MIT'
   s.metadata               = { 'maintainer'         => '@warmfusion',
                                'development_status' => 'active',
@@ -28,7 +28,7 @@ Gem::Specification.new do |s|
                               }
   s.name                   = 'sensu-plugins-snmptrap-extension'
   s.platform               = Gem::Platform::RUBY
-  s.post_install_message   = 'You can use the embedded Ruby by setting EMBEDDED_RUBY=true in /etc/default/sensu'
+  s.post_install_message   = 'Ensure you symlink the bin/extension-snmptrap.rb to your sensu/extensions directory'
   s.require_paths          = ['lib']
   s.required_ruby_version  = '>= 1.9.3'
   s.summary                = 'Sensu extension to capture SNMP trap events'
