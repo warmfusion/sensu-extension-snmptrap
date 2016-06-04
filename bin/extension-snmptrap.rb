@@ -104,7 +104,7 @@ module Sensu
       def validate
 
         if options[:client_socket_bind].nil?
-          @logger.warn "couldnt find client socket binding - is it defined? https://sensuapp.org/docs/latest/reference/clients.html#socket-attributes"
+          @logger.warn 'couldnt find client socket binding - is it defined? https://sensuapp.org/docs/latest/reference/clients.html#socket-attributes'
           false
         end
         true
@@ -122,7 +122,7 @@ module Sensu
             @trapdefs.concat Array(::JSON.parse(File.read(file)))
           end
 
-          @logger.debug "loaded trapdefs..."
+          @logger.debug 'loaded trapdefs...'
           @logger.debug @trapdefs.to_json
 
           @mibs = []
@@ -155,10 +155,6 @@ module Sensu
           # SNMP::MIB.import_modules(@mibs)
           # manager.load_modules(@mibs, DEFAULT_MIB_PATH)
           # @mib = manager.mib
-
-          manager.on_trap_v1 do |trap|
-            @logger.warn('SNMPTrap caught an snmp v1 trap which not currently handled')
-          end
 
           manager.on_trap_v2c do |trap|
             @logger.debug('v2-Trap caught')
@@ -203,7 +199,7 @@ module Sensu
           @logger.debug "opening connection to #{host}:#{port}"
           t = TCPSocket.new host, port
           t.write(check.to_json + "\n")
-        rescue Exception => e
+        rescue StandardError => e
           @logger.error(e)
         end
       end
