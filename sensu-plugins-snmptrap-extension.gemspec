@@ -48,8 +48,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'redcarpet',                 '~> 3.2'
   s.add_development_dependency 'yard',                      '~> 0.8'
 
-# Support for older Ruby installs
+  # Support for older Ruby installs
   s.add_development_dependency 'activesupport',             '> 4.2', '< 5.0'
   s.add_development_dependency 'json',                      '< 2.0'
-  
 end
