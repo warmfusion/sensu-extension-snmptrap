@@ -8,6 +8,8 @@ This CHANGELOG follows the format listed at [Keep A Changelog](http://keepachang
 
 ### Changed
 
+* Fix versions to support reliable builds on older ruby
+
 ## [0.2.1] - 2016-06-04
 ### Changed
 - Fixing rubocop warnings
