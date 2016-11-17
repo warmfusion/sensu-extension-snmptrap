@@ -184,6 +184,10 @@ module Sensu
 
       private
 
+      def deep_copy(o)
+        Marshal.load(Marshal.dump(o))
+      end
+
       # Doesn't appear to be possible to ping Sensu directly for async event triggering
       # even though we're inside Sensu right now...
       def publish_check_result(check)
@@ -204,6 +208,9 @@ module Sensu
       end
 
       def process_v2c_trap(trap, trapdef)
+        # deep_copy trapdef hash, as we mutate it later
+        trapdef = deep_copy(trapdef)
+
         hostname = trap.source_ip
         begin
           hostname = Resolv.getname(trap.source_ip)

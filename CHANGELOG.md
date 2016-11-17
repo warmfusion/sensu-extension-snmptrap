@@ -10,6 +10,8 @@ This CHANGELOG follows the format listed at [Keep A Changelog](http://keepachang
 - #4 - SNMP Trap template values were not getting replaced properly - Thanks @dhassett-tr! #5
 - #6 - Fix Travis builds by restricting upper range for certain dependencies
 
+* Fix versions to support reliable builds on older ruby
+
 ## [0.2.1] - 2016-06-04
 ### Changed
 - Fixing rubocop warnings
